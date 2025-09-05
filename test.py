@@ -1,40 +1,46 @@
-import requests, json
-from dotenv import load_dotenv
 import os
-
+import requests
+import json
+from dotenv import load_dotenv
 load_dotenv()
 
-BASE = "https://api.avito.ru"
-CLIENT_ID = os.getenv("AVITO_CLIENT_ID")
-CLIENT_SECRET = os.getenv("AVITO_CLIENT_SECRET")
-USER_ID = os.getenv("AVITO_USER_ID")
+API_KEY = os.getenv("OPENAI_API_KEY") 
+HOST = os.getenv("PROXY_HOST")
+PORT = os.getenv("PROXY_PORT")
+USER = os.getenv("PROXY_USER")
+PASS = os.getenv("PROXY_PASS")
 
-def get_token():
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
+url = "https://api.openai.com/v1/responses"
+proxies = {
+        "http": f"http://{HOST}:{PORT}:{USER}:{PASS}"
+}
+headers = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
+}
 
-    }
-    r = requests.post(f"{BASE}/token", data=data, timeout=30)  # без слеша в конце — надёжнее
-    print("TOKEN STATUS:", r.status_code, r.text[:200])
-    r.raise_for_status()
-    return r.json()["access_token"]
+payload = {
+    "model": "gpt-4o-mini",                 # укажите доступную вам модель
+    "input": "Привет! Напиши короткий тост на свадьбу (1-2 предложения)."
+}
 
-def list_chats(access_token, limit=20):
-    url = f"{BASE}/messenger/v2/accounts/{USER_ID}/chats"
-    r = requests.get(url, headers={
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/json",
-    }, params={"limit": limit}, timeout=30)
-    print("CHATS STATUS:", r.status_code, r.text[:200])
-    r.raise_for_status()
-    return r.json()
+resp = requests.post(url, headers=headers, json=payload, timeout=60, proxies=proxies)
+resp.raise_for_status()
+data = resp.json()
 
-if __name__ == "__main__":
-    token = get_token()
-    chats = list_chats(token)
-    print(chats)
-    
-    
-    print(token)
+# Удобный вывод текста (в Responses API часто есть поле output_text)
+text = data.get("output_text")
+if not text:
+    # резервный разбор, если output_text отсутствует
+    try:
+        parts = []
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                for c in item.get("content", []):
+                    if "text" in c:
+                        parts.append(c["text"])
+        text = "\n".join(parts).strip()
+    except Exception:
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+
+print(text or data)

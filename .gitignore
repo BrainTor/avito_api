@@ -12,3 +12,4 @@ pycache/
 .ruff_cache/
 *.xml
 *.pyc
+venv
